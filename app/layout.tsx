@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { JetBrains_Mono } from 'next/font/google'
 import { GeistPixelGrid } from 'geist/font/pixel'
 import { ThemeProvider } from '@/components/theme-provider'
+import { StarkPassPrivyProvider } from '@/components/privy-provider'
 import { Toaster } from '@/components/ui/toaster'
 
 import './globals.css'
@@ -76,10 +77,12 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${jetbrainsMono.variable} ${GeistPixelGrid.variable}`} suppressHydrationWarning>
       <body className="font-mono antialiased">
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
-          {children}
-          <Toaster />
-        </ThemeProvider>
+        <StarkPassPrivyProvider>
+          <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+            {children}
+            <Toaster />
+          </ThemeProvider>
+        </StarkPassPrivyProvider>
       </body>
     </html>
   )

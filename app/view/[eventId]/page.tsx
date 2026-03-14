@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
+import { RpcProvider, Contract, shortString } from "starknet"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
@@ -14,8 +15,12 @@ import {
   User,
   Ticket,
   Shield,
+  Database,
+  ExternalLink,
+  Loader2,
 } from "lucide-react"
 import { getEventById } from "@/lib/dummy-events"
+import { EVENT_MANAGER_ABI } from "@/lib/abi"
 import { motion } from "framer-motion"
 import { verify } from "@/lib/zkpass"
 import { toast } from "@/hooks/use-toast"
@@ -24,6 +29,17 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/components/ui/dialog"
+
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || ""
+
+interface OnChainData {
+  event_name: string
+  organizer: string
+  age_requirement: number
+  max_attendees: number
+  ticket_count: number
+  active: boolean
+}
 
 function formatDate(iso: string) {
   try {
@@ -50,6 +66,41 @@ export default function EventDetailPage() {
   const [verifying, setVerifying] = useState(false)
   const [hasPass, setHasPass] = useState(false)
   const [passModalOpen, setPassModalOpen] = useState(false)
+  const [onChainData, setOnChainData] = useState<OnChainData | null>(null)
+  const [onChainLoading, setOnChainLoading] = useState(false)
+
+  useEffect(() => {
+    if (!event) return
+    const fetchOnChain = async () => {
+      setOnChainLoading(true)
+      try {
+        const provider = new RpcProvider({
+          nodeUrl: "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_7/demo",
+        })
+        const contract = new Contract({
+          abi: EVENT_MANAGER_ABI,
+          address: CONTRACT_ADDRESS,
+          provider,
+        })
+        const eventNameFelt = shortString.encodeShortString(event.name)
+        const result = await contract.get_event(eventNameFelt)
+        setOnChainData({
+          event_name: shortString.decodeShortString(result.event_name.toString()),
+          organizer: "0x" + BigInt(result.organizer).toString(16),
+          age_requirement: Number(result.age_requirement),
+          max_attendees: Number(result.max_attendees),
+          ticket_count: Number(result.ticket_count),
+          active: Boolean(result.active),
+        })
+      } catch {
+        // Event not found on-chain — that's fine
+        setOnChainData(null)
+      } finally {
+        setOnChainLoading(false)
+      }
+    }
+    fetchOnChain()
+  }, [event])
 
   if (!event) {
     return (
@@ -237,6 +288,78 @@ export default function EventDetailPage() {
               </div>
             </div>
           </motion.div>
+
+          {/* On-chain data */}
+          {(onChainData || onChainLoading) && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.18, ease: [0.22, 1, 0.36, 1] }}
+              className="border-2 border-foreground bg-background p-6 mb-8"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-10 h-10 border-2 border-foreground">
+                    <Database size={18} />
+                  </div>
+                  <span className="text-[10px] font-mono tracking-[0.2em] uppercase text-muted-foreground">
+                    On-chain data (Starknet Sepolia)
+                  </span>
+                </div>
+                {onChainData && (
+                  <a
+                    href={`https://sepolia.starkscan.co/contract/${CONTRACT_ADDRESS}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] font-mono tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1"
+                  >
+                    Explorer <ExternalLink size={10} />
+                  </a>
+                )}
+              </div>
+              {onChainLoading ? (
+                <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
+                  <Loader2 size={14} className="animate-spin" />
+                  Fetching from chain...
+                </div>
+              ) : onChainData ? (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="border border-border p-3">
+                    <p className="text-[10px] font-mono tracking-[0.2em] uppercase text-muted-foreground">
+                      Name
+                    </p>
+                    <p className="font-mono text-sm font-medium mt-1">
+                      {onChainData.event_name}
+                    </p>
+                  </div>
+                  <div className="border border-border p-3">
+                    <p className="text-[10px] font-mono tracking-[0.2em] uppercase text-muted-foreground">
+                      Age req.
+                    </p>
+                    <p className="font-mono text-sm font-medium mt-1">
+                      {onChainData.age_requirement}+
+                    </p>
+                  </div>
+                  <div className="border border-border p-3">
+                    <p className="text-[10px] font-mono tracking-[0.2em] uppercase text-muted-foreground">
+                      Max attendees
+                    </p>
+                    <p className="font-mono text-sm font-medium mt-1">
+                      {onChainData.max_attendees.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="border border-border p-3">
+                    <p className="text-[10px] font-mono tracking-[0.2em] uppercase text-muted-foreground">
+                      Organizer
+                    </p>
+                    <p className="font-mono text-sm font-medium mt-1 truncate" title={onChainData.organizer}>
+                      {onChainData.organizer.slice(0, 8)}...
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+            </motion.div>
+          )}
 
           {/* Eligibility (StarkZap-only) */}
           {event.organizer === "StarkZap" && (
