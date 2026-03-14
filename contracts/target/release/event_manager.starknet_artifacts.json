@@ -1,0 +1,1 @@
+{"version":1,"contracts":[{"id":"i5cm40iqgfaj4","package_name":"event_manager","contract_name":"EventManager","module_path":"event_manager::EventManager","artifacts":{"sierra":"event_manager_EventManager.contract_class.json","casm":null}}]}

@@ -1,0 +1,9 @@
+[package]
+name = "event_manager"
+version = "0.1.0"
+edition = "2024_07"
+
+[dependencies]
+starknet = ">=2.9.0"
+
+[[target.starknet-contract]]
